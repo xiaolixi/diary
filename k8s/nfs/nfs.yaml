@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: nfs-client-provisioner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          image: quay.io/external_storage/nfs-client-provisioner:latest
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs-k8s
+            - name: NFS_SERVER
+              value: 192.168.11.200
+            - name: NFS_PATH
+              value: /data/k8s-nfs-151
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 192.168.11.200
+            path: /data/k8s-nfs-151
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: k8s-nfs-storage
+provisioner: nfs-k8s	
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "k8s-nfs-storage"
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Mi
+      
+      
+---             
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: default
+  labels:
+    app: myapp
+    type: pod
+spec:
+  containers:
+  - name: myapp
+    image: busybox:1.28.1
+    command: ["/bin/sh","-c","touch /data/test.txt;echo hello >> /data/test.txt;sleep 3600"]
+    volumeMounts:
+    - name: html
+      mountPath: /data
+  volumes:
+  - name: html
+    persistentVolumeClaim:
+      claimName: test-pvc
