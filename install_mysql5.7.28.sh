@@ -20,3 +20,10 @@ function install(){
   mysql -uroot -p
   
 }
+
+function main(){
+  remove_marisa
+  install
+}
+
+main
