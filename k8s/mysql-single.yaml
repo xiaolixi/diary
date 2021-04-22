@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-single-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: mysql-single-deployment
+  template:
+    metadata:
+      labels:
+        name: mysql-single-deployment
+    spec:
+      containers:
+      - name: mysql-single-deployment
+        image: mysql:5.71
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: root
+        volumeMounts:
+        - name: time
+          mountPath: /etc/localtime
+        - mountPath: /var/lib/mysql
+          name: mysql
+      volumes:
+      - name: time
+        hostPath:
+          path: /etc/localtime
+      - name: mysql
+        hostPath:
+          path: /mysql-single-deployment/mysql-single
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-sin-svc
+  labels:
+    name: mysql-single-deployment
+spec:
+  selector:
+    name: mysql-single-deployment
+  type: NodePort
+  ports:
+    - port: 3306
+      targetPort: 3306
+      protocol: TCP
+      name: mysql-single-deployment
