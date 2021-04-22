@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nginx-static-cluster-pvc
+  annotations:
+    # volume.beta.kubernetes.io/storage-class: "k8s-nfs-storage"
+spec:
+  storageClassName: "k8s-nfs-storage"
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Mi
+---      
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-static-cluster-svc
+  namespace: default
+spec:
+  type: NodePort
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx-static-cluster
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-static-cluster-config
+  namespace: default		
+data:
+  nginx.conf: |
+    server {
+        listen       80;
+        server_name  localhost;
+    
+        #charset koi8-r;
+        #access_log  /var/log/nginx/host.access.log  main;
+    
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+    
+        #error_page  404              /404.html;
+    
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    
+        # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+        #
+        #location ~ \.php$ {
+        #    proxy_pass   http://127.0.0.1;
+        #}
+    
+        # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+        #
+        #location ~ \.php$ {
+        #    root           html;
+        #    fastcgi_pass   127.0.0.1:9000;
+        #    fastcgi_index  index.php;
+        #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+        #    include        fastcgi_params;
+        #}
+    
+        # deny access to .htaccess files, if Apache's document root
+        # concurs with nginx's one
+        #
+        #location ~ /\.ht {
+        #    deny  all;
+        #}
+    }
+---   
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-static-cluster
+  namespace: default
+  labels:
+    app: nginx-static-cluster 
+spec:
+  selector:
+    matchLabels:
+      app: nginx-static-cluster
+  template:
+    metadata:
+      labels:
+        app: nginx-static-cluster 
+    spec: 
+      containers:
+      - image: nginx:1.17.6
+        command: ["/usr/sbin/nginx","-g", "daemon off;"]
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          failureThreshold: 5
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        readinessProbe:
+          tcpSocket:
+            port: 80
+          failureThreshold: 5
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: nginx-static-cluster
+        ports:
+        - containerPort: 80
+          protocol: TCP 
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: time
+        - mountPath: /etc/nginx/conf.d
+          name: config
+        - mountPath: /usr/share/nginx/html
+          name: static-data
+      dnsPolicy: ClusterFirst
+      hostname: nginx-static-cluster
+      volumes:
+      - configMap:
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+          name: nginx-static-cluster-config
+        name: config
+      - hostPath:
+          path: /etc/localtime
+        name: time
+      - persistentVolumeClaim:
+          claimName: nginx-static-cluster-pvc
+        name: static-data
