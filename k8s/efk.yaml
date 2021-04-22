@@ -261,5 +261,54 @@ spec:
     nodePort: 38145
   selector:
     k8s-app: kibana  
-
+---
+# elasticsearch
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: elasticsearch
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+    spec:
+      containers:
+      - image: docker.elastic.co/elasticsearch/elasticsearch:6.5.4
+        name: elasticsearch
+        env:
+        - name: discovery.type
+          value: single-node
+        resources:
+          # need more cpu upon initialization, therefore burstable class
+          limits:
+            cpu: 1000m
+          requests:
+            cpu: 100m
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP  
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: logging
+  labels:
+    service: elasticsearch
+spec:
+  type: NodePort
+  ports:
+  - port: 9200
+    protocol: TCP
+    targetPort: 9200
+    nodePort: 26405
+  selector:
+    component: elasticsearch  
   
