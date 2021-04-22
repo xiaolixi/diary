@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-single-test-config
+  namespace: default		
+data:
+  nginx.conf: |
+    server {
+        listen       80;
+        server_name  localhost;
+    
+        #charset koi8-r;
+        #access_log  /var/log/nginx/host.access.log  main;
+    
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+    
+        #error_page  404              /404.html;
+    
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    
+        # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+        #
+        #location ~ \.php$ {
+        #    proxy_pass   http://127.0.0.1;
+        #}
+    
+        # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+        #
+        #location ~ \.php$ {
+        #    root           html;
+        #    fastcgi_pass   127.0.0.1:9000;
+        #    fastcgi_index  index.php;
+        #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+        #    include        fastcgi_params;
+        #}
+    
+        # deny access to .htaccess files, if Apache's document root
+        # concurs with nginx's one
+        #
+        #location ~ /\.ht {
+        #    deny  all;
+        #}
+    }
+
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx-single-test
+  name: nginx-single-test
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: nginx-single-test
+  template:
+    metadata:
+      labels:
+        app: nginx-single-test
+    spec:
+      containers:
+      - command:
+        - /usr/sbin/nginx
+#        - -c
+#        - /etc/nginx/conf.d/nginx.conf
+        - -g
+        - daemon off;
+        image: nginx:1.17.6
+        imagePullPolicy: IfNotPresent
+        name: nginx-single-test
+        livenessProbe:    
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 30 
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          readinessProbe:
+        readinessProbe:
+          httpGet:
+            path: / 
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 5 
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 5
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /etc/nginx/conf.d
+          name: config
+#        - mountPath: /usr/share/nginx/html
+#          name: html          
+      volumes:
+      - configMap:
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+          name: nginx-single-test-config
+        name: config
+##      - hostPath:
+##          path: /path/to/html
+##        name: html
+        
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nginx-single-test-svc
+  name: nginx-single-test-svc
+  namespace: default
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: nginx-single-test
+  selector:
+    app: nginx-single-test
+  type: NodePort	
