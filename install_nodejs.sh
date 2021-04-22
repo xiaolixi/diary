@@ -17,7 +17,7 @@ function install() {
     cd /opt
     nodeName=$(tar -xf ${nodejsPackage} | awk 'NR==1')
     ln  -s   /opt/${nodeName}  /opt/nodejs
-    ln -s /opt/nodejs/bin/node /usr/local/bin/node
+    ln -sf /opt/nodejs/bin/node /usr/local/bin/node
     ln -sf /opt/nodejs/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
     ln -sf /opt/nodejs/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 }
